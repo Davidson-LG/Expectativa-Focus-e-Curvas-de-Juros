@@ -1,0 +1,125 @@
+---
+title: "Relatório diário"
+subtitle: "Expectativas de mercado e curvas de juros"
+format: html
+author: DIC-RF
+lang: pt
+title-block-banner: "#0f0c0fff"
+date: last-modified
+execute: 
+  echo: false
+  warning: false
+---
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false
+
+import pandas as pd
+import ipeadatapy as ipea
+from pyield import ntnb, ntnf, ltn
+from pyield import bday
+from pyield import bc
+from pyield import anbima
+from pyield import Interpolator
+import numpy as np
+import pyield as yd
+from pandas.tseries.offsets import BDay
+from pyield.anbima import intraday_ettj, last_ettj
+import datetime
+```
+
+```{python}
+#| fig-align: center
+#| warning: false
+#| echo: false
+
+# Importação de dados Expectativas Focus
+
+dados_focus = pd.read_csv(filepath_or_buffer="https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoAnuais?$filter=Indicador%20eq%20'PIB%20Total'%20or%20Indicador%20eq%20'IPCA'%20or%20Indicador%20eq%20'C%C3%A2mbio'%20or%20Indicador%20eq%20'Selic'%20and%20baseCalculo%20eq%200&$format=text/csv",
+decimal = ",")
+
+# Tratamento de dados
+
+dados_focus_base_tratada = (
+    dados_focus
+    .filter(
+        items = ["Indicador", "Data", "DataReferencia", "Mediana"]
+    )
+    .assign(
+        Data = lambda x: pd.to_datetime(x["Data"], format = "%Y-%m-%d").dt.strftime("%Y%m")
+    )
+    .tail(20)
+    .groupby(by = ["Indicador", "Data", "DataReferencia"], as_index=False)["Mediana"].mean()
+    .assign(
+        DataReferencia = lambda x: x["DataReferencia"].astype(object)
+    )
+)
+
+# Immportação de dados curvas de juros ANBIMA
+
+# Datas
+hoje = datetime.date.today()
+ontem = hoje - 1 * BDay()
+semana_anterior = hoje - 5 * BDay()
+semestre = hoje - 180 * BDay()
+
+# Importando DI's
+DI_ontem = yd.futures(contract_code="DI1", date = ontem)
+DI_semana_anterior = yd.futures(contract_code="DI1", date = semana_anterior)
+DI_semestre = yd.futures(contract_code="DI1", date = semestre)
+
+# Importando NTN-B's
+ntnb_ontem = ntnb.data(ontem)
+ntnb_semana_anterior = ntnb.data(semana_anterior)
+ntnb_semestre = ntnb.data(semestre)
+
+# Importando LTN's
+ltn_ontem = ltn.data(ontem)
+ltn_semana_anterior = ltn.data(semana_anterior)
+ltn_semestre = ltn.data(semestre)
+
+# Tratamento DI
+def tratar(base): 
+    tabela = (
+        base
+        .filter(
+            items = ["ExpirationDate", "TickerSymbol", "ForwardRate", "BDaysToExp"],
+            axis = 1
+        )
+        .rename(
+            columns = {
+            "ExpirationDate": "data",
+            "TickerSymbol": "ticker",
+            "ForwardRate": "taxa",
+            "BDaysToExp": "dias"
+        }
+
+        )
+        .assign(taxa = lambda x: x["taxa"] * 100)
+        .assign(taxa = lambda x: x.taxa.round(2))
+    )
+
+    return tabela
+
+DI_ontem = tratar(DI_ontem)
+DI_semana_anterior = tratar(DI_semana_anterior)
+DI_semestre = tratar(DI_semestre)
+
+# Tratamento NTNB e LTN 
+
+
+
+
+```
+
+
+
+# *Objetivo  do relatório*
+
+O presente documento tem como fim manter acompanhamento rotineiro do andamento das expectativas de mercado, bem como das curvas de juros, elementos imprescindíveis para a tomada de decisões no âmbito da alocação de capital.
+
+## *PIB*
+
