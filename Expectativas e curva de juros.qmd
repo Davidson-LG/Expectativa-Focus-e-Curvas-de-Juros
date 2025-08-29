@@ -29,6 +29,9 @@ import pyield as yd
 from pandas.tseries.offsets import BDay
 from pyield.anbima import intraday_ettj, last_ettj
 import datetime
+import plotnine as p9
+from mizani.formatters import number_format
+
 ```
 
 ```{python}
@@ -51,10 +54,12 @@ dados_focus_base_tratada = (
     .assign(
         Data = lambda x: pd.to_datetime(x["Data"], format = "%Y-%m-%d").dt.strftime("%Y%m")
     )
-    .tail(20)
     .groupby(by = ["Indicador", "Data", "DataReferencia"], as_index=False)["Mediana"].mean()
     .assign(
         DataReferencia = lambda x: x["DataReferencia"].astype(object)
+    )
+    .assign(
+        Data = lambda x: pd.to_datetime(x.Data, format="%Y%m") 
     )
 )
 
@@ -67,7 +72,7 @@ semana_anterior = hoje - 5 * BDay()
 semestre = hoje - 180 * BDay()
 
 # Importando DI's
-DI_ontem = yd.futures(contract_code="DI1", date = ontem)
+DI_ontem = yd.futures(contract_code="DI1", date=ontem)
 DI_semana_anterior = yd.futures(contract_code="DI1", date = semana_anterior)
 DI_semestre = yd.futures(contract_code="DI1", date = semestre)
 
@@ -110,7 +115,41 @@ DI_semestre = tratar(DI_semestre)
 
 # Tratamento NTNB e LTN 
 
+def tratatpf(base): 
+    base_titulos = (
+    base
+    .filter(
+        items = ["MaturityDate", "BDToMat", "Duration", "IndicativeRate", "DIRate"],
+        axis = 1
+    )
+    .rename(
+        columns = {
+            "MaturityDate": "vencimento",
+            "BDToMat": "dias",
+            "Duration": "duration",
+            "IndicativeRate": "taxa",
+            "DIRate": "DI"
+        })
+    .assign(
+        taxa = lambda x: x.taxa * 100,
+        DI = lambda x: x.DI * 100
+    )
+    .assign(
+        taxa = lambda x: x.taxa.round(2),
+        DI = lambda x: x.DI.round(2),
+        inflacao_implicita = lambda x: x.DI - x.taxa,
+        duration = lambda x: x.duration.round(2)
+    )
+)
+    return base_titulos
 
+ntnb_ontem = tratatpf(ntnb_ontem)
+ntnb_semana_anterior = tratatpf(ntnb_semana_anterior)
+ntnb_semestre = tratatpf(ntnb_semestre)
+
+ltn_ontem = tratatpf(ltn_ontem)
+ltn_semana_anterior  = tratatpf(ltn_semana_anterior)
+ltn_ontem = tratatpf(ltn_semestre)
 
 
 ```
@@ -121,5 +160,164 @@ DI_semestre = tratar(DI_semestre)
 
 O presente documento tem como fim manter acompanhamento rotineiro do andamento das expectativas de mercado, bem como das curvas de juros, elementos imprescindíveis para a tomada de decisões no âmbito da alocação de capital.
 
-## *PIB*
+## *Relatório Focus*
 
+### *PIB*
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false   
+
+PIB_focus = (
+        dados_focus_base_tratada
+        .query("Indicador == 'PIB Total'")
+        .replace(
+            to_replace = "PIB Total",
+            value = "PIB"
+        )
+        .query("Data >= '2022-01-01'")
+        .query("DataReferencia > 2024")
+        .assign(Mediana = lambda x: x.Mediana.round(2))
+    )
+
+(
+    p9.ggplot(PIB_focus) + 
+    p9.aes(x = 'Data', y = 'Mediana', color = "DataReferencia") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "Mediana Focus - PIB",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title= p9.element_text(weight='bold'),
+        legend_title=p9.element_blank(),
+        legend_text=p9.element_text(weight='bold'),
+        plot_caption=p9.element_text(weight='bold')
+    ) + 
+    p9.scale_x_date(date_labels="%Y-%m")
+)
+
+```
+
+
+### *Selic*
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false   
+
+Selic = (
+        dados_focus_base_tratada
+        .query("Indicador == 'Selic'")
+        .query("Data >= '2022-01-01'")
+        .query("DataReferencia > 2024")
+        .assign(Mediana = lambda x: x.Mediana.round(2))
+    )
+
+(
+    p9.ggplot(Selic) + 
+    p9.aes(x = 'Data', y = 'Mediana', color = "DataReferencia") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "Mediana Focus - Selic",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title= p9.element_text(weight='bold'),
+        legend_title=p9.element_blank(),
+        legend_text=p9.element_text(weight='bold'),
+        plot_caption=p9.element_text(weight='bold')
+    ) +
+    p9.scale_x_date(date_labels="%Y-%m")
+)
+```
+
+
+### *Câmbio*
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false   
+
+cambio = (
+        dados_focus_base_tratada
+        .query("Indicador == 'Câmbio'")
+        .query("Data >= '2022-01-01'")
+        .query("DataReferencia > 2024")
+        .assign(Mediana = lambda x: x.Mediana.round(2))
+    )
+
+(
+    p9.ggplot(cambio) + 
+    p9.aes(x = 'Data', y = 'Mediana', color = "DataReferencia") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "Mediana Focus - Câmbio",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title= p9.element_text(weight='bold'),
+        legend_title=p9.element_blank(),
+        legend_text=p9.element_text(weight='bold'),
+        plot_caption=p9.element_text(weight='bold')
+    ) +
+    p9.scale_x_date(date_labels="%Y-%m")
+)
+
+
+
+
+```
+
+
+
+### *IPCA*
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false   
+
+ipca = (
+        dados_focus_base_tratada
+        .query("Indicador == 'IPCA'")
+        .query("Data >= '2022-01-01'")
+        .query("DataReferencia > 2024")
+        .assign(Mediana = lambda x: x.Mediana.round(2))
+    )
+
+(
+    p9.ggplot(ipca) + 
+    p9.aes(x = 'Data', y = 'Mediana', color = "DataReferencia") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "Mediana Focus - IPCA",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title= p9.element_text(weight='bold'),
+        legend_title=p9.element_blank(),
+        legend_text=p9.element_text(weight='bold'),
+        plot_caption=p9.element_text(weight='bold')
+    ) +
+    p9.scale_x_date(date_labels="%Y-%m") + 
+    p9.scale_y_continuous(labels = number_format(accuracy=0.01))
+)
+```
+
+
+## *Juro real Ex-Ante*
