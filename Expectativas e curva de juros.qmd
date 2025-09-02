@@ -69,7 +69,7 @@ dados_focus_base_tratada = (
 hoje = datetime.date.today()
 ontem = hoje - 1 * BDay()
 semana_anterior = hoje - 5 * BDay()
-semestre = hoje - 180 * BDay()
+semestre = (hoje - pd.Timedelta(days = 180)) + BDay(0)
 
 # Importando DI's
 DI_ontem = yd.futures(contract_code="DI1", date=ontem)
@@ -91,11 +91,12 @@ def tratar(base):
     tabela = (
         base
         .filter(
-            items = ["ExpirationDate", "TickerSymbol", "ForwardRate", "BDaysToExp"],
+            items = ["TradeDate", "ExpirationDate", "TickerSymbol", "ForwardRate", "BDaysToExp"],
             axis = 1
         )
         .rename(
             columns = {
+            "TradeDate": "data_negociacao",
             "ExpirationDate": "data",
             "TickerSymbol": "ticker",
             "ForwardRate": "taxa",
@@ -119,11 +120,12 @@ def tratatpf(base):
     base_titulos = (
     base
     .filter(
-        items = ["MaturityDate", "BDToMat", "Duration", "IndicativeRate", "DIRate"],
+        items = ["ReferenceDate", "MaturityDate", "BDToMat", "Duration", "IndicativeRate", "DIRate"],
         axis = 1
     )
     .rename(
         columns = {
+            "ReferenceDate": "data_negociacao",
             "MaturityDate": "vencimento",
             "BDToMat": "dias",
             "Duration": "duration",
@@ -320,4 +322,175 @@ ipca = (
 ```
 
 
-## *Juro real Ex-Ante*
+## *Variáveis de mercado*
+
+### *Juro real Ex-Ante*
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false
+
+# Importando DI futuro
+DI_futuro_360 = ipea.timeseries(series = "BMF12_SWAPDI36012")
+
+DI_futuro_360_tratado = (
+    DI_futuro_360
+    .reset_index()
+    .filter(
+        items=["DATE", "VALUE ((% a.a.))"]
+    )
+    .rename(
+        columns = {
+            "DATE": "data", "VALUE ((% a.a.))": "taxa"
+        }
+    )
+    .query(
+        "data > '2010-01-01'"
+    )
+
+)
+
+# Inflação esperada
+
+inflacao_12m = pd.read_csv("https://olinda.bcb.gov.br/olinda/servico/Expectativas/versao/v1/odata/ExpectativasMercadoInflacao12Meses?$filter=Indicador%20eq%20'IPCA'%20and%20baseCalculo%20eq%200%20and%20Suavizada%20eq%20'S'&$format=text/csv",
+decimal = ",")
+
+inflacao_12m_tratado = (
+    inflacao_12m
+    .filter(
+        items = ["Data", "Mediana"],
+        axis = 1
+    )
+    .rename(
+        {
+            "Data": "data",
+            "Mediana": "ipca"
+        },
+        axis = 1
+    )
+    .query("data > '2010-01-01'")
+    .assign(
+        anomes = lambda x: pd.to_datetime(x["data"]).dt.strftime("%Y%m")
+    )
+    .groupby(by = ["anomes"], as_index=False)["ipca"]
+    .mean()
+    .assign(
+        data = lambda x: pd.to_datetime(x["anomes"], format = "%Y%m")
+    )
+    .filter(['data', 'ipca'], axis = 1)
+)
+
+
+# juntando tabelas
+tabela_juro_real = (
+    DI_futuro_360_tratado
+    .merge(
+        right = inflacao_12m_tratado,
+        how = 'left',
+        on = 'data'
+    )
+    .assign(
+        juro_real = lambda x: (((1 + x["taxa"]/100) / (1 + x["ipca"]/100)) - 1) * 100
+    )
+    .assign(
+        juro_real = lambda x: x["juro_real"].round(2)
+    )
+)
+
+# Gráfico 
+
+last_point_jr = tabela_juro_real.query("data == data.max()")
+
+grafico_juro_real_ex_ante = (
+    p9.ggplot(tabela_juro_real) + 
+    p9.aes(x = "data", y = "juro_real") + 
+    p9.geom_line(color = "orange") + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "Juro Real ex-ante",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title=p9.element_text(weight = "bold"),
+        plot_caption=p9.element_text(weight = "bold")
+    ) + 
+    p9.scale_x_date(date_labels="%Y-%m") + 
+    p9.geom_label(
+        data = last_point_jr,
+        mapping = p9.aes(label = "juro_real"),
+        fill = "#ff8100",
+        color = "white",
+        ha = "left",
+        va = "center",
+        nudge_x = 3,
+        size = 7,
+        fontweight = "bold"
+    )
+)
+
+grafico_juro_real_ex_ante
+
+
+```
+
+
+### *DI Futuro*
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false
+
+# Tratamento
+
+tabela_DI = pd.concat(
+    [DI_ontem, DI_semana_anterior, DI_semestre]
+)
+
+
+tabela_DI = (
+    tabela_DI
+    .sort_values(by = ["data_negociacao", "data"])
+    .assign(
+        data_negociacao = lambda x: x["data_negociacao"].astype(str)
+    )
+)
+
+# Gráfico
+
+grafico_DI_futuro = (
+    p9.ggplot(tabela_DI) + 
+    p9.aes(x = "data", y = "taxa", color = "data_negociacao") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "DI Futuro",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title=p9.element_text(weight="bold"),
+        plot_caption=p9.element_text(weight="bold"),
+        legend_title=p9.element_blank(),
+        legend_position='top'
+    ) + 
+    p9.scale_x_date(date_labels = 
+        "%Y-%m"
+    ) + 
+    p9.scale_color_manual(
+        values = ["red", "blue", "orange"]
+    )
+) 
+
+grafico_DI_futuro
+
+
+
+```
+
+
+
