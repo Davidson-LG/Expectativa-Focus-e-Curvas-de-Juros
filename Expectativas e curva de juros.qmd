@@ -151,7 +151,7 @@ ntnb_semestre = tratatpf(ntnb_semestre)
 
 ltn_ontem = tratatpf(ltn_ontem)
 ltn_semana_anterior  = tratatpf(ltn_semana_anterior)
-ltn_ontem = tratatpf(ltn_semestre)
+ltn_semestre = tratatpf(ltn_semestre)
 
 
 ```
@@ -493,4 +493,155 @@ grafico_DI_futuro
 ```
 
 
+### *ETTJ Juro Real* 
 
+
+
+```{python}
+#| fig-align: center
+#| echo: false
+#| warning: false
+
+tabela_ntn = pd.concat(
+    [ntnb_ontem, 
+    ntnb_semana_anterior,
+    ntnb_semestre]
+)
+
+tabela_ntn = (
+    tabela_ntn
+    .assign(
+        data_negociacao = lambda x: x["data_negociacao"].astype(str)
+    )
+)
+
+grafico_ntnb = (
+    p9.ggplot(tabela_ntn) + 
+    p9.aes(x = "vencimento", y = "taxa", color = "data_negociacao") +
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "ETTJ - Juro Real",
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title = p9.element_text(weight="bold"),
+        plot_caption= p9.element_text(weight="bold"),
+        legend_title=p9.element_blank(),
+        legend_position="top"
+    ) + 
+    p9.scale_x_date(date_labels="%Y-%m") + 
+    p9.coord_cartesian(ylim=(6.5,10)) + 
+    p9.scale_color_manual(
+        values = ["red", "blue", "orange"]
+    )
+)
+grafico_ntnb
+```
+
+
+
+### *ETTJ - Prefixados*
+
+
+```{python}
+
+#| fig-align: center
+#| echo: false
+#| warning: false
+
+
+tabela_ltn = pd.concat(
+    [ltn_ontem,
+    ltn_semana_anterior,
+    ltn_semestre]
+)
+
+tabela_ltn = (
+    tabela_ltn
+    .assign(
+        data_negociacao = lambda x: x["data_negociacao"].astype(str)
+    )
+)
+
+grafico_ltn = (
+    p9.ggplot(tabela_ltn) + 
+    p9.aes(x = "vencimento", y = "taxa", color = "data_negociacao") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        caption = "Elaborado por DIC-RF",
+        title = "ETTJ - Prefixados"
+    ) + 
+    p9.theme(
+        plot_title=p9.element_text(weight="bold"),
+        plot_caption=p9.element_text(weight="bold"),
+        legend_title=p9.element_blank(),
+        legend_position="top"
+    ) + 
+    p9.scale_x_date(date_labels="%Y-%m") + 
+    p9.scale_color_manual(
+        values = ["red", "blue", "orange"]
+    )
+)
+
+grafico_ltn
+```
+
+
+### *Inflação Implícita*
+
+
+```{python}
+#| fig-align: center
+#| echo: false  
+#| warning: false
+
+ 
+implicita = pd.concat(
+        [ntnb_ontem,
+        ntnb_semana_anterior,
+        ntnb_semestre]
+    )
+
+tabela_implicita = (
+    implicita
+    .assign(
+        data_negociacao = lambda x: x.data_negociacao.astype(str)
+    )
+    .filter(
+        ["data_negociacao", "vencimento", "inflacao_implicita"],
+        axis = "columns"
+        
+    )
+)
+
+
+(
+    p9.ggplot(tabela_implicita) + 
+    p9.aes(x = "vencimento", y = "inflacao_implicita", color = "data_negociacao") + 
+    p9.geom_line() + 
+    p9.labs(
+        x = "",
+        y = "",
+        title = "Inflação Implícita", 
+        caption = "Elaborado por DIC-RF"
+    ) + 
+    p9.theme(
+        plot_title=p9.element_text(weight="bold"), 
+        plot_caption= p9.element_text(weight = "bold"),
+        legend_position="top", 
+        legend_title=p9.element_blank() 
+
+    ) + 
+    p9.scale_color_manual(
+        values = ["red", "blue", "orange"]
+    ) + 
+    p9.scale_x_date(date_labels="%Y-%m")
+)
+
+
+
+```

@@ -1,0 +1,4 @@
+- source: Expectativas e curva de juros.qmd
+  quarto-pub:
+    - id: 07d52cf7-62fc-4bb2-940e-0b97e2708f59
+      url: 'https://davidson.quarto.pub/expectativas-focus-e-dados-de-mercado'
